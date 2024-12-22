@@ -7,11 +7,11 @@ import torch.nn.functional as F
 
 logit_laplace_eps: float = 0.1
 
-@attr.s(eq=False)
+@attr.s(eq=False)	# disables auto generation of __eq__ method by Object class of python; instances of this classes cannot be compared by their content;
 class Conv2d(nn.Module):
-	n_in:  int = attr.ib(validator=lambda i, a, x: x >= 1)
+	n_in:  int = attr.ib(validator=lambda i, a, x: x >= 1)	# in and out number of channels;
 	n_out: int = attr.ib(validator=lambda i, a, x: x >= 1)
-	kw:    int = attr.ib(validator=lambda i, a, x: x >= 1 and x % 2 == 1)
+	kw:    int = attr.ib(validator=lambda i, a, x: x >= 1 and x % 2 == 1)	# kernel width;
 
 	use_float16:   bool         = attr.ib(default=True)
 	device:        torch.device = attr.ib(default=torch.device('cpu'))
@@ -22,11 +22,11 @@ class Conv2d(nn.Module):
 
 		w = torch.empty((self.n_out, self.n_in, self.kw, self.kw), dtype=torch.float32,
 			device=self.device, requires_grad=self.requires_grad)
-		w.normal_(std=1 / math.sqrt(self.n_in * self.kw ** 2))
+		w.normal_(std=1 / math.sqrt(self.n_in * self.kw ** 2))	# scale weight's std by 1/√(n_in), n_in=number of terms in ∑wᵢxᵢ for each activation; for convolution, each activation comes from sum of n_in kw² terms;
 
 		b = torch.zeros((self.n_out,), dtype=torch.float32, device=self.device,
 			requires_grad=self.requires_grad)
-		self.w, self.b = nn.Parameter(w), nn.Parameter(b)
+		self.w, self.b = nn.Parameter(w), nn.Parameter(b)	# store as paramters in the class, added to the self.parameters iterater;
 
 	def forward(self, x: torch.Tensor) -> torch.Tensor:
 		if self.use_float16 and 'cuda' in self.w.device.type:

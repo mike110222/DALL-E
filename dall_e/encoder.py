@@ -24,10 +24,10 @@ class EncoderBlock(nn.Module):
 		self.post_gain = 1 / (self.n_layers ** 2)
 
 		make_conv     = partial(Conv2d, device=self.device, requires_grad=self.requires_grad)
-		self.id_path  = make_conv(self.n_in, self.n_out, 1) if self.n_in != self.n_out else nn.Identity()
+		self.id_path  = make_conv(self.n_in, self.n_out, 1) if self.n_in != self.n_out else nn.Identity()	# kernel width kw=1, adjusts the channels to match the output, so can be added as the identity connection;
 		self.res_path = nn.Sequential(OrderedDict([
 				('relu_1', nn.ReLU()),
-				('conv_1', make_conv(self.n_in,  self.n_hid, 3)),
+				('conv_1', make_conv(self.n_in,  self.n_hid, 3)), # bottleneck, n_hid only has 1/4 many channels as n_out;
 				('relu_2', nn.ReLU()),
 				('conv_2', make_conv(self.n_hid, self.n_hid, 3)),
 				('relu_3', nn.ReLU()),
@@ -36,13 +36,13 @@ class EncoderBlock(nn.Module):
 				('conv_4', make_conv(self.n_hid, self.n_out, 1)),]))
 
 	def forward(self, x: torch.Tensor) -> torch.Tensor:
-		return self.id_path(x) + self.post_gain * self.res_path(x)
+		return self.id_path(x) + self.post_gain * self.res_path(x) # scaling of residual connection by 1/n_layers²; n_layers=groups*blocks per group=4*2 by default, 4 groups of 2 as in the orginal ResNet 50;
 
 @attr.s(eq=False, repr=False)
 class Encoder(nn.Module):
 	group_count:     int = 4
 	n_hid:           int = attr.ib(default=256,  validator=lambda i, a, x: x >= 64)
-	n_blk_per_group: int = attr.ib(default=2,    validator=lambda i, a, x: x >= 1)
+	n_blk_per_group: int = attr.ib(default=2,    validator=lambda i, a, x: x >= 1)	# blk=block;
 	input_channels:  int = attr.ib(default=3,    validator=lambda i, a, x: x >= 1)
 	vocab_size:      int = attr.ib(default=8192, validator=lambda i, a, x: x >= 512)
 
@@ -63,7 +63,7 @@ class Encoder(nn.Module):
 			('input', make_conv(self.input_channels, 1 * self.n_hid, 7)),
 			('group_1', nn.Sequential(OrderedDict([
 				*[(f'block_{i + 1}', make_blk(1 * self.n_hid, 1 * self.n_hid)) for i in blk_range],
-				('pool', nn.MaxPool2d(kernel_size=2)),
+				('pool', nn.MaxPool2d(kernel_size=2)), # note the MaxPool2d affects the spatial dimensions, while the n_hid multipliers change the input, output channel numbers, these affect different dimensions of the 4d tensor, the last 2 and first 2 respectively;
 			]))),
 			('group_2', nn.Sequential(OrderedDict([
 				*[(f'block_{i + 1}', make_blk(1 * self.n_hid if i == 0 else 2 * self.n_hid, 2 * self.n_hid)) for i in blk_range],
@@ -71,14 +71,14 @@ class Encoder(nn.Module):
 			]))),
 			('group_3', nn.Sequential(OrderedDict([
 				*[(f'block_{i + 1}', make_blk(2 * self.n_hid if i == 0 else 4 * self.n_hid, 4 * self.n_hid)) for i in blk_range],
-				('pool', nn.MaxPool2d(kernel_size=2)),
+				('pool', nn.MaxPool2d(kernel_size=2)), # only 3 MaxPools, reduce by factor of 8 in (H,W) dimensions;
 			]))),
 			('group_4', nn.Sequential(OrderedDict([
 				*[(f'block_{i + 1}', make_blk(4 * self.n_hid if i == 0 else 8 * self.n_hid, 8 * self.n_hid)) for i in blk_range],
 			]))),
 			('output', nn.Sequential(OrderedDict([
 				('relu', nn.ReLU()),
-				('conv', make_conv(8 * self.n_hid, self.vocab_size, 1, use_float16=False)),
+				('conv', make_conv(8 * self.n_hid, self.vocab_size, 1, use_float16=False)), # 1×1 conv, output is the logits;
 			]))),
 		]))
 

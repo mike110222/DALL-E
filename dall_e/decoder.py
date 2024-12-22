@@ -61,7 +61,7 @@ class Decoder(nn.Module):
 				requires_grad=self.requires_grad)
 
 		self.blocks = nn.Sequential(OrderedDict([
-			('input', make_conv(self.vocab_size, self.n_init, 1, use_float16=False)),
+			('input', make_conv(self.vocab_size, self.n_init, 1, use_float16=False)),	# the input uses logits of z, not 1-hot encoding, generated from the encoder q_φ(z|x) or the prior transformer p_ψ(y,z);
 			('group_1', nn.Sequential(OrderedDict([
 				*[(f'block_{i + 1}', make_blk(self.n_init if i == 0 else 8 * self.n_hid, 8 * self.n_hid)) for i in blk_range],
 				('upsample', nn.Upsample(scale_factor=2, mode='nearest')),
